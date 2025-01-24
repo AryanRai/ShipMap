@@ -1,56 +1,22 @@
-import pandas as pd
 import requests
 
-API_KEYS = {
-    "maersk": "your_maersk_api_key",
-    "cma_cgm": "dCcBcF7hkvkOH3QtfAl8QkSiRU25kNXd",
-    "hapag": "your_hapag_loyd_api_key",
-    "oocl": "your_oocl_api_key",
-    "msc": "your_msc_api_key",
+# Get BL number from the user
+shipment_number = input("Enter the BL number: ")
+
+# Define the API endpoint and key
+url = f"https://api.sinay.ai/container-tracking/api/v2/shipment?shipmentNumber={shipment_number}"
+headers = {
+    "accept": "application/json",
+    "API_KEY": "6c82ec9b-e0ec-4eba-a114-2c53dceabda7"
 }
 
-def fetch_maersk_eta(bl_number):
-    url = f"https://api.maersk.com/tracking/v1/shipments?search={bl_number}"
-    headers = {"Authorization": f"Bearer {API_KEYS['maersk']}"}
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.json().get("estimatedTimeOfArrival", "N/A")
-    print(f"Error for Maersk BL {bl_number}: {response.text}")
-    return f"Error: {response.status_code}"
+# Make the API request
+response = requests.get(url, headers=headers)
 
-# Similar fetch functions for CMA CGM, Hapag, OOCL, MSC...
-
-def fetch_eta(row):
-    try:
-        shipping_line = row['Shipping Line'].strip().lower()
-        bl_number = row['BL']
-    except KeyError as e:
-        return f"Missing column: {e}"
-    except Exception as e:
-        return f"Error: {e}"
-
-    if shipping_line == "maersk":
-        return fetch_maersk_eta(bl_number)
-    elif shipping_line == "cma cgm":
-        return fetch_cma_cgm_eta(bl_number)
-    elif shipping_line == "hapag":
-        return fetch_hapag_eta(bl_number)
-    elif shipping_line == "oocl":
-        return fetch_oocl_eta(bl_number)
-    elif shipping_line == "msc":
-        return fetch_msc_eta(bl_number)
-    else:
-        return "Unsupported Shipping Line"
-
-if __name__ == "__main__":
-    input_file = "shipping_data.xlsx"
-    output_file = "updated_shipping_data.xlsx"
-
-    try:
-        df = pd.read_excel(input_file)
-        df.columns = df.columns.str.strip()  # Clean column names
-        df['Updated ETA'] = df.apply(fetch_eta, axis=1)
-        df.to_excel(output_file, index=False)
-        print(f"Updated shipping data saved to {output_file}")
-    except Exception as e:
-        print(f"Error: {e}")
+# Check the response and print the result
+if response.status_code == 200:
+    print("Response data:")
+    print(response.json())  # Parse JSON for better readability
+else:
+    print(f"Failed to fetch data. Status code: {response.status_code}")
+    print(response.text)

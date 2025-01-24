@@ -1,53 +1,62 @@
 import requests
+import time
 
-# CMA CGM API Key (Replace with your actual API key)
-API_KEY = "dCcBcF7hkvkOH3QtfAl8QkSiRU25kNXd"
+# Replace with your Parcels API key
+API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJjMWVkMDYyMC1jYjNiLTExZWYtYTMwYy0xM2VhZTliOTQ3YmEiLCJzdWJJZCI6IjY3N2EzZDJhOGMzYzU3MTk3NGQxMDM5MCIsImlhdCI6MTczNjA2NDI5OH0.iHyoNiaRs2vr9t5QSXfjL-4YJ3q76gvMR_tmQMvUUbY"
+TRACKING_URL = "https://parcelsapp.com/api/v3/shipments/tracking"
 
-# Base URL for the operation.trackandtrace.v1 API
-BASE_URL = "https://apis.cma-cgm.net/operation/trackandtrace/v1"
-
-def fetch_cma_eta(bl_number):
+def track_bl_number(bl_number, destination_country="United States"):
     """
-    Fetch Estimated Time of Arrival (ETA) for a shipment using CMA CGM API.
-
-    Args:
-        bl_number (str): The Bill of Lading (BL) number.
-
-    Returns:
-        str: The Estimated Time of Arrival (ETA) or an error message.
+    Tracks a shipment using a BL (Bill of Lading) number.
+    
+    :param bl_number: The BL number to track.
+    :param destination_country: Destination country (default is United States).
     """
-    url = f"{BASE_URL}/shipment?blNumber={bl_number}"
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json",
+    # Step 1: Create Tracking Request
+    print(f"Initiating tracking request for BL Number: {bl_number}")
+    data = {
+        "shipments": [
+            {
+                "trackingId": bl_number,
+                "destinationCountry": destination_country
+            }
+        ],
+        "language": "en",
+        "apiKey": API_KEY
     }
-
-    try:
-        # Send a GET request to the API
-        response = requests.get(url, headers=headers)
+    
+    response = requests.post(TRACKING_URL, json=data)
+    if response.status_code != 200:
+        print("Error initiating tracking request:", response.text)
+        return
+    
+    # Get the UUID from the response
+    uuid = response.json().get("uuid")
+    if not uuid:
+        print("Error: No UUID returned from the tracking request.")
+        return
+    print(f"Tracking request initiated. UUID: {uuid}")
+    
+    # Step 2: Poll for Tracking Results
+    print("Polling for tracking results...")
+    while True:
+        poll_response = requests.get(TRACKING_URL, params={"uuid": uuid, "apiKey": API_KEY})
+        if poll_response.status_code != 200:
+            print("Error polling for tracking results:", poll_response.text)
+            break
         
-        if response.status_code == 200:
-            # Parse the JSON response
-            data = response.json()
-            
-            # Extract ETA from the response
-            eta = data.get("estimatedTimeOfArrival", "N/A")
-            return eta
+        poll_data = poll_response.json()
+        if poll_data.get("done"):
+            print("Tracking Complete!")
+            print("Tracking Results:")
+            print(poll_data)
+            break
         else:
-            # Handle API errors
-            return f"Error: {response.status_code} - {response.text}"
-    except requests.RequestException as e:
-        # Handle connection errors
-        return f"Error: Unable to connect to API. Details: {e}"
+            print("Tracking in progress...")
+            time.sleep(1)  # Poll every second
 
-# Main function to input BL number and fetch ETA
+# Example usage
 if __name__ == "__main__":
-    print("CMA CGM Track and Trace - Fetch ETA")
-    print("===================================")
-
-    # Input BL number
-    bl_number = input("Enter the Bill of Lading (BL) number: ").strip()
-
-    # Fetch ETA
-    eta = fetch_cma_eta(bl_number)
-    print(f"Estimated Time of Arrival (ETA): {eta}")
+    bl_number = input("Enter the BL Number to track: ").strip()
+    destination_country = input("Enter the destination country (default: United States): ").strip() or "United States"
+    track_bl_number(bl_number, destination_country)
